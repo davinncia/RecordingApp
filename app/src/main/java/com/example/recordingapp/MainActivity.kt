@@ -3,21 +3,22 @@ package com.example.recordingapp
 import android.Manifest
 import android.content.ContentValues
 import android.content.pm.PackageManager
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
+import android.os.CountDownTimer
 import android.provider.MediaStore
 import android.util.Log
 import android.view.View
 import android.widget.Toast
 import androidx.camera.core.CameraSelector
-import androidx.camera.core.ImageCapture
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.video.*
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.core.content.PermissionChecker
 import com.example.recordingapp.databinding.ActivityMainBinding
 import java.text.SimpleDateFormat
 import java.util.*
@@ -45,9 +46,19 @@ class MainActivity : AppCompatActivity() {
         }
 
         // Set up the listener for video capture button
-        viewBinding.videoCaptureButton.setOnClickListener { captureVideo() }
+        viewBinding.videoCaptureButton.setOnClickListener {
+            if (recording != null) stopVideoCapture()
+            else getStartCountDown(5L).start()
+        }
 
         cameraExecutor = Executors.newSingleThreadExecutor()
+
+        setRecordingFrame(FrameState.DEFAULT)
+    }
+
+    private fun stopVideoCapture() {
+        recording?.stop()
+        recording = null
     }
 
     private fun captureVideo() {
@@ -55,11 +66,8 @@ class MainActivity : AppCompatActivity() {
 
         viewBinding.videoCaptureButton.isEnabled = false
 
-        val curRecording = recording
-        if (curRecording != null) {
-            // Stop the current recording session.
-            curRecording.stop()
-            recording = null
+        if (recording != null) {
+            stopVideoCapture()
             return
         }
 
@@ -83,6 +91,7 @@ class MainActivity : AppCompatActivity() {
             .start(ContextCompat.getMainExecutor(this)) { recordEvent ->
                 when(recordEvent) {
                     is VideoRecordEvent.Start -> {
+                        filmingCountDown.start()
                         viewBinding.recordingIndicator.visibility = View.VISIBLE
                         viewBinding.videoCaptureButton.apply {
                             text = getString(R.string.stop_capture)
@@ -153,7 +162,54 @@ class MainActivity : AppCompatActivity() {
         cameraExecutor.shutdown()
     }
 
-    //-------------------------------- P E R M I S S I O N S -------------------------------------//
+    //------------------------------------------ U I ---------------------------------------------//
+
+    private fun setRecordingFrame(state: FrameState) {
+        val frameDrawable = (viewBinding.frame.background as? GradientDrawable) ?: return
+        frameDrawable.setStroke(state.widthPx, state.color)
+    }
+
+    private enum class FrameState(val widthPx: Int, val color: Int) {
+        DEFAULT(20, Color.WHITE),
+        HIDDEN(0, Color.TRANSPARENT),
+        GOOD(20, Color.GREEN),
+        WRONG(20, Color.RED)
+    }
+
+    private fun getStartCountDown(timeSec: Long): CountDownTimer {
+        viewBinding.textCountdown.visibility = View.VISIBLE
+        viewBinding.videoCaptureButton.text = ""
+        viewBinding.videoCaptureButton.isEnabled = false
+
+        val t = timeSec * 1_000 + 1_000
+
+        return object : CountDownTimer(t, 1_000L) {
+            override fun onTick(p0: Long) {
+                if (p0 < 1_000) {
+                    viewBinding.textCountdown.text = "GO_"
+                } else {
+                    viewBinding.textCountdown.text = (p0 / 1_000L).toString()
+                }
+            }
+
+            override fun onFinish() {
+                viewBinding.textCountdown.visibility = View.GONE
+                captureVideo()
+            }
+        }
+    }
+
+    private val filmingCountDown: CountDownTimer =
+
+        object : CountDownTimer(5_000L, 1_000L) {
+            override fun onTick(p0: Long) {}
+
+            override fun onFinish() {
+                stopVideoCapture()
+            }
+        }
+
+    //--------------------------------- P E R M I S S I O N S ------------------------------------//
 
     private fun allPermissionsGranted() = REQUIRED_PERMISSIONS.all {
         ContextCompat.checkSelfPermission(baseContext, it) == PackageManager.PERMISSION_GRANTED
