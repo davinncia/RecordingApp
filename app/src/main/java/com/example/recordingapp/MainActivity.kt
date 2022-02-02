@@ -23,13 +23,8 @@ import java.util.*
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
-typealias LumaListener = (luma: Double) -> Unit
-
-
 class MainActivity : AppCompatActivity() {
     private lateinit var viewBinding: ActivityMainBinding
-
-    private var imageCapture: ImageCapture? = null
 
     private var videoCapture: VideoCapture<Recorder>? = null
     private var recording: Recording? = null
@@ -45,18 +40,14 @@ class MainActivity : AppCompatActivity() {
         if (allPermissionsGranted()) {
             startCamera()
         } else {
-            ActivityCompat.requestPermissions(
-                this, REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS)
+            ActivityCompat.requestPermissions(this, REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS)
         }
 
-        // Set up the listeners for take photo and video capture buttons
-        viewBinding.imageCaptureButton.setOnClickListener { takePhoto() }
+        // Set up the listener for video capture button
         viewBinding.videoCaptureButton.setOnClickListener { captureVideo() }
 
         cameraExecutor = Executors.newSingleThreadExecutor()
     }
-
-    private fun takePhoto() {}
 
     private fun captureVideo() {
         val videoCapture = this.videoCapture ?: return
@@ -124,7 +115,6 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
             }
-
     }
 
     private fun startCamera() {
