@@ -2,8 +2,10 @@ package com.example.recordingapp
 
 import android.Manifest
 import android.content.ContentValues
+import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Color
+import android.graphics.Point
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import androidx.appcompat.app.AppCompatActivity
@@ -11,15 +13,22 @@ import android.os.Bundle
 import android.os.CountDownTimer
 import android.provider.MediaStore
 import android.util.Log
+import android.util.Size
+import android.view.Display
 import android.view.View
+import android.view.WindowManager
 import android.widget.Toast
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.video.*
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.example.recordingapp.databinding.ActivityMainBinding
+import com.google.mlkit.vision.pose.Pose
+import com.google.mlkit.vision.pose.PoseDetection
+import com.google.mlkit.vision.pose.defaults.PoseDetectorOptions
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.ExecutorService
@@ -143,13 +152,16 @@ class MainActivity : AppCompatActivity() {
             // Select back camera as a default
             val cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
 
+            val imageAnalysis = getImageAnalysis()
+
             try {
                 // Unbind use cases before rebinding
                 cameraProvider.unbindAll()
 
                 // Bind use cases to camera
-                cameraProvider
-                    .bindToLifecycle(this, cameraSelector, preview, videoCapture)
+                //cameraProvider.bindToLifecycle(this, cameraSelector, preview, videoCapture)
+                cameraProvider.bindToLifecycle(this, cameraSelector, imageAnalysis, preview, videoCapture)
+
             } catch(exc: Exception) {
                 Log.e(TAG, "Use case binding failed", exc)
             }
@@ -160,6 +172,39 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         cameraExecutor.shutdown()
+    }
+
+    //----------------------------------- D E T E C T O R ----------------------------------------//
+
+    private fun getImageAnalysis(): ImageAnalysis {
+        // Detector
+        val options = PoseDetectorOptions.Builder()
+            .setDetectorMode(PoseDetectorOptions.STREAM_MODE)
+            .build()
+        val poseDetector = PoseDetection.getClient(options)
+
+        val wm = this.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        val display: Display = wm.defaultDisplay
+
+        return ImageAnalysis.Builder()
+            .setTargetResolution(Size(display.width, display.height))
+            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+            .build()
+            .also {
+                it.setAnalyzer(
+                    cameraExecutor,
+                    PoseImageAnalyser(
+                        poseDetector,
+                        object : PoseImageAnalyser.PoseListener {
+                            override fun onPoseAnalysed(pose: Pose) {
+                                val skeleton = SkeletonDraw(this@MainActivity, pose)
+                                viewBinding.frameSkeleton.removeAllViews()
+                                viewBinding.frameSkeleton.addView(skeleton)
+                            }
+
+                        })
+                )
+            }
     }
 
     //------------------------------------------ U I ---------------------------------------------//
