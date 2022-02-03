@@ -5,7 +5,6 @@ import android.content.ContentValues
 import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Color
-import android.graphics.Point
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import androidx.appcompat.app.AppCompatActivity
@@ -34,11 +33,12 @@ import java.util.*
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : AppCompatActivity(), PoseImageAnalyser.PoseListener {
     private lateinit var viewBinding: ActivityMainBinding
 
     private var videoCapture: VideoCapture<Recorder>? = null
     private var recording: Recording? = null
+    private var recordingState = RecordingState.STOPPED
 
     private lateinit var cameraExecutor: ExecutorService
 
@@ -46,6 +46,9 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         viewBinding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(viewBinding.root)
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+
+        //setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
 
         // Request camera permissions
         if (allPermissionsGranted()) {
@@ -57,7 +60,7 @@ class MainActivity : AppCompatActivity() {
         // Set up the listener for video capture button
         viewBinding.videoCaptureButton.setOnClickListener {
             if (recording != null) stopVideoCapture()
-            else getStartCountDown(5L).start()
+            else countDownStart(COUNT_DOWN_MANUAL_RECORDING).start()
         }
 
         cameraExecutor = Executors.newSingleThreadExecutor()
@@ -100,7 +103,8 @@ class MainActivity : AppCompatActivity() {
             .start(ContextCompat.getMainExecutor(this)) { recordEvent ->
                 when(recordEvent) {
                     is VideoRecordEvent.Start -> {
-                        filmingCountDown.start()
+                        recordingState = RecordingState.RECORDING
+                        filmingDurationCountDown.start()
                         viewBinding.recordingIndicator.visibility = View.VISIBLE
                         viewBinding.videoCaptureButton.apply {
                             text = getString(R.string.stop_capture)
@@ -109,22 +113,20 @@ class MainActivity : AppCompatActivity() {
                     }
                     is VideoRecordEvent.Finalize -> {
                         if (!recordEvent.hasError()) {
-                            val msg = "Video capture succeeded: " +
-                                    "${recordEvent.outputResults.outputUri}"
-                            Toast.makeText(baseContext, msg, Toast.LENGTH_SHORT)
-                                .show()
+                            val msg = "Video capture succeeded: " + "${recordEvent.outputResults.outputUri}"
+                            Toast.makeText(baseContext, msg, Toast.LENGTH_SHORT).show()
                             Log.d(TAG, msg)
                         } else {
                             recording?.close()
                             recording = null
-                            Log.e(TAG, "Video capture ends with error: " +
-                                    "${recordEvent.error}")
+                            Log.e(TAG, "Video capture ends with error: " + "${recordEvent.error}")
                         }
                         viewBinding.recordingIndicator.visibility = View.GONE
                         viewBinding.videoCaptureButton.apply {
                             text = getString(R.string.start_capture)
                             isEnabled = true
                         }
+                        recordingState = RecordingState.STOPPED
                     }
                 }
             }
@@ -159,7 +161,6 @@ class MainActivity : AppCompatActivity() {
                 cameraProvider.unbindAll()
 
                 // Bind use cases to camera
-                //cameraProvider.bindToLifecycle(this, cameraSelector, preview, videoCapture)
                 cameraProvider.bindToLifecycle(this, cameraSelector, imageAnalysis, preview, videoCapture)
 
             } catch(exc: Exception) {
@@ -193,23 +194,36 @@ class MainActivity : AppCompatActivity() {
             .also {
                 it.setAnalyzer(
                     cameraExecutor,
-                    PoseImageAnalyser(
-                        poseDetector,
-                        object : PoseImageAnalyser.PoseListener {
-                            override fun onPoseAnalysed(pose: Pose) {
-                                val skeleton = SkeletonDraw(this@MainActivity, pose)
-                                viewBinding.frameSkeleton.removeAllViews()
-                                viewBinding.frameSkeleton.addView(skeleton)
-                            }
-
-                        })
+                    PoseImageAnalyser(poseDetector, this)
                 )
             }
     }
 
+    override fun onPoseAnalysed(pose: Pose) {
+        val skeleton = SkeletonDraw(this@MainActivity, pose)
+        viewBinding.frameSkeleton.removeAllViews()
+        viewBinding.frameSkeleton.addView(skeleton)
+    }
+
+    override fun fullBodyInFrame(inFrame: Boolean) {
+        if (inFrame) {
+            setRecordingFrame(FrameState.GOOD)
+            if (recordingState == RecordingState.STOPPED) {
+                // Launch automatic recording
+                countDownStart(COUNT_DOWN_POSTURE_DETECTION).start()
+            }
+        }
+        else setRecordingFrame(FrameState.WRONG)
+    }
+
     //------------------------------------------ U I ---------------------------------------------//
 
+    private var frameState: FrameState = FrameState.DEFAULT
+
     private fun setRecordingFrame(state: FrameState) {
+        if (state == this.frameState) return
+
+        this.frameState = state
         val frameDrawable = (viewBinding.frame.background as? GradientDrawable) ?: return
         frameDrawable.setStroke(state.widthPx, state.color)
     }
@@ -221,14 +235,17 @@ class MainActivity : AppCompatActivity() {
         WRONG(20, Color.RED)
     }
 
-    private fun getStartCountDown(timeSec: Long): CountDownTimer {
+    private enum class RecordingState() {
+        STOPPED, COUNT_DOWN, RECORDING
+    }
+
+    private fun countDownStart(time: Long): CountDownTimer {
         viewBinding.textCountdown.visibility = View.VISIBLE
         viewBinding.videoCaptureButton.text = ""
         viewBinding.videoCaptureButton.isEnabled = false
+        recordingState = RecordingState.COUNT_DOWN
 
-        val t = timeSec * 1_000 + 1_000
-
-        return object : CountDownTimer(t, 1_000L) {
+        return object : CountDownTimer(time + 1_000, 1_000L) {
             override fun onTick(p0: Long) {
                 if (p0 < 1_000) {
                     viewBinding.textCountdown.text = "GO_"
@@ -244,9 +261,9 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private val filmingCountDown: CountDownTimer =
+    private val filmingDurationCountDown: CountDownTimer =
 
-        object : CountDownTimer(5_000L, 1_000L) {
+        object : CountDownTimer(FILMING_DURATION, 1_000L) {
             override fun onTick(p0: Long) {}
 
             override fun onFinish() {
@@ -280,6 +297,11 @@ class MainActivity : AppCompatActivity() {
     companion object {
         private const val TAG = "CameraXApp"
         private const val FILENAME_FORMAT = "yyyy-MM-dd-HH-mm-ss-SSS"
+
+        private const val COUNT_DOWN_POSTURE_DETECTION = 3_000L
+        private const val COUNT_DOWN_MANUAL_RECORDING = 5_000L
+        private const val FILMING_DURATION = 5_000L
+
         private const val REQUEST_CODE_PERMISSIONS = 10
         private val REQUIRED_PERMISSIONS =
             mutableListOf (

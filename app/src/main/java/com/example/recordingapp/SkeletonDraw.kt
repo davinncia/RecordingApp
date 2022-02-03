@@ -22,7 +22,7 @@ class SkeletonDraw(context: Context?, var pose: Pose) : View(context) {
 
     private val screenWidth: Int
 
-    init{
+    init {
         val wm = this.context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
         val display: Display = wm.defaultDisplay
         screenWidth = display.width
