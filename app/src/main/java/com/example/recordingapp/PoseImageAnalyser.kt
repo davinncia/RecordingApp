@@ -13,6 +13,8 @@ class PoseImageAnalyser(
 ) : ImageAnalysis.Analyzer {
 
     private var frameCount = SCORE_DELIVERY_FRAME_RATE
+    // We store n scores then analyse body placement given average value
+    private val scores = arrayListOf<Double>()
 
     @androidx.camera.core.ExperimentalGetImage
     override fun analyze(imageProxy: ImageProxy) {
@@ -36,10 +38,14 @@ class PoseImageAnalyser(
                         score += mark.inFrameLikelihood
                     }
 
+                    scores.add(score)
+
                     frameCount--
                     if (frameCount < 0) {
                         frameCount = SCORE_DELIVERY_FRAME_RATE
-                        poseListener.fullBodyInFrame(score > (it.allPoseLandmarks.size - SCORE_DELTA))
+                        Log.d("debuglog", scores.toString())
+                        poseListener.fullBodyInFrame(scores.average() > (it.allPoseLandmarks.size - SCORE_DELTA))
+                        scores.clear()
                     }
 
                     // SKELETON

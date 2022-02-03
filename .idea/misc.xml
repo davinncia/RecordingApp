@@ -6,6 +6,7 @@
         <entry key="app/src/main/res/drawable/active_recording.xml" value="0.20462962962962963" />
         <entry key="app/src/main/res/drawable/ic_videocam.xml" value="0.20462962962962963" />
         <entry key="app/src/main/res/drawable/recording_frame.xml" value="0.20462962962962963" />
+        <entry key="app/src/main/res/layout/action_bar_movement_recording_activity.xml" value="0.22192028985507245" />
         <entry key="app/src/main/res/layout/activity_main.xml" value="0.25" />
         <entry key="app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml" value="0.20462962962962963" />
       </map>
