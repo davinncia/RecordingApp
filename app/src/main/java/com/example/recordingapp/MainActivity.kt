@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
+import android.hardware.camera2.CameraCharacteristics
 import android.os.Build
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
@@ -17,6 +18,7 @@ import android.view.Display
 import android.view.View
 import android.view.WindowManager
 import android.widget.Toast
+import androidx.appcompat.app.ActionBar
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
@@ -24,6 +26,10 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.video.*
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updatePadding
 import com.example.recordingapp.databinding.ActivityMainBinding
 import com.google.mlkit.vision.pose.Pose
 import com.google.mlkit.vision.pose.PoseDetection
@@ -32,6 +38,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import android.hardware.camera2.CameraManager
 
 class MainActivity : AppCompatActivity(), PoseImageAnalyser.PoseListener {
     private lateinit var viewBinding: ActivityMainBinding
@@ -47,7 +54,6 @@ class MainActivity : AppCompatActivity(), PoseImageAnalyser.PoseListener {
         viewBinding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(viewBinding.root)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-
         //setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
 
         // Request camera permissions
@@ -66,6 +72,7 @@ class MainActivity : AppCompatActivity(), PoseImageAnalyser.PoseListener {
         cameraExecutor = Executors.newSingleThreadExecutor()
 
         setRecordingFrame(FrameState.DEFAULT)
+
     }
 
     private fun stopVideoCapture() {
@@ -161,7 +168,10 @@ class MainActivity : AppCompatActivity(), PoseImageAnalyser.PoseListener {
                 cameraProvider.unbindAll()
 
                 // Bind use cases to camera
-                cameraProvider.bindToLifecycle(this, cameraSelector, imageAnalysis, preview, videoCapture)
+                if (analysisAvailable())
+                    cameraProvider.bindToLifecycle(this, cameraSelector, imageAnalysis, preview, videoCapture)
+                else
+                    cameraProvider.bindToLifecycle(this, cameraSelector, preview, videoCapture)
 
             } catch(exc: Exception) {
                 Log.e(TAG, "Use case binding failed", exc)
@@ -292,6 +302,27 @@ class MainActivity : AppCompatActivity(), PoseImageAnalyser.PoseListener {
         }
     }
 
+    //--------------------------------------- U T I L S ------------------------------------------//
+
+    private fun analysisAvailable(): Boolean {
+        val manager = (getSystemService(CAMERA_SERVICE) as CameraManager)
+        val frontCameraId = getFrontFacingCameraId(manager)
+        frontCameraId ?: return false
+        val characteristics = manager.getCameraCharacteristics(frontCameraId)
+
+        return  (characteristics.get(CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL)
+                != CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_LIMITED)
+    }
+
+    private fun getFrontFacingCameraId(cManager: CameraManager): String? {
+        for (cameraId in cManager.cameraIdList) {
+            val characteristics = cManager.getCameraCharacteristics(cameraId)
+            val cOrientation = characteristics.get(CameraCharacteristics.LENS_FACING)
+            if (cOrientation == CameraCharacteristics.LENS_FACING_FRONT) return cameraId
+        }
+        return null
+    }
+
     //----------------------------------- C O M P A N I O N --------------------------------------//
 
     companion object {
@@ -304,9 +335,7 @@ class MainActivity : AppCompatActivity(), PoseImageAnalyser.PoseListener {
 
         private const val REQUEST_CODE_PERMISSIONS = 10
         private val REQUIRED_PERMISSIONS =
-            mutableListOf (
-                Manifest.permission.CAMERA
-            ).apply {
+            mutableListOf (Manifest.permission.CAMERA).apply {
                 if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
                     add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
                 }
