@@ -3,6 +3,7 @@ package com.example.recordingapp
 import android.Manifest
 import android.content.ContentValues
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
@@ -52,6 +53,13 @@ class MainActivity : AppCompatActivity(), PoseImageAnalyser.PoseListener {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         //setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
 
+        cameraExecutor = Executors.newSingleThreadExecutor()
+
+        if (true) {
+            startActivity(Intent(this, AnalysisResultActivity::class.java))
+            return
+        }
+
         // Request camera permissions
         if (allPermissionsGranted()) {
             startCamera()
@@ -65,7 +73,6 @@ class MainActivity : AppCompatActivity(), PoseImageAnalyser.PoseListener {
             else countDownStart(COUNT_DOWN_MANUAL_RECORDING).start()
         }
 
-        cameraExecutor = Executors.newSingleThreadExecutor()
 
         setRecordingFrame(FrameState.DEFAULT)
 
