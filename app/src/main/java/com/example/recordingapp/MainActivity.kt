@@ -7,8 +7,8 @@ import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.hardware.camera2.CameraCharacteristics
+import android.hardware.camera2.CameraManager
 import android.os.Build
-import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.os.CountDownTimer
 import android.provider.MediaStore
@@ -18,7 +18,7 @@ import android.view.Display
 import android.view.View
 import android.view.WindowManager
 import android.widget.Toast
-import androidx.appcompat.app.ActionBar
+import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
@@ -26,10 +26,6 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.video.*
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.updatePadding
 import com.example.recordingapp.databinding.ActivityMainBinding
 import com.google.mlkit.vision.pose.Pose
 import com.google.mlkit.vision.pose.PoseDetection
@@ -38,7 +34,6 @@ import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
-import android.hardware.camera2.CameraManager
 
 class MainActivity : AppCompatActivity(), PoseImageAnalyser.PoseListener {
     private lateinit var viewBinding: ActivityMainBinding
@@ -46,8 +41,9 @@ class MainActivity : AppCompatActivity(), PoseImageAnalyser.PoseListener {
     private var videoCapture: VideoCapture<Recorder>? = null
     private var recording: Recording? = null
     private var recordingState = RecordingState.STOPPED
-
     private lateinit var cameraExecutor: ExecutorService
+
+    private var analysisActivated = true
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -158,7 +154,7 @@ class MainActivity : AppCompatActivity(), PoseImageAnalyser.PoseListener {
                 .build()
             videoCapture = VideoCapture.withOutput(recorder)
 
-            // Select back camera as a default
+            // Select front camera as a default
             val cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
 
             val imageAnalysis = getImageAnalysis()
@@ -168,13 +164,24 @@ class MainActivity : AppCompatActivity(), PoseImageAnalyser.PoseListener {
                 cameraProvider.unbindAll()
 
                 // Bind use cases to camera
-                if (analysisAvailable())
-                    cameraProvider.bindToLifecycle(this, cameraSelector, imageAnalysis, preview, videoCapture)
-                else
+                cameraProvider.bindToLifecycle(this, cameraSelector, imageAnalysis, preview, videoCapture)
+
+            } catch (exc: IllegalArgumentException) {
+                Log.e(TAG, "Use case binding failed", exc)
+                // Some devices won't support analysis while capturing video
+                // e,g: CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_LIMITED
+                try {
+                    analysisActivated = false
+                    viewBinding.videoCaptureButton.visibility = View.VISIBLE
                     cameraProvider.bindToLifecycle(this, cameraSelector, preview, videoCapture)
+                } catch(exc: Exception) {
+                    Log.e(TAG, "Use case binding without analysis failed", exc)
+                    //todo error message
+                }
 
             } catch(exc: Exception) {
                 Log.e(TAG, "Use case binding failed", exc)
+                //todo error message
             }
 
         }, ContextCompat.getMainExecutor(this))
