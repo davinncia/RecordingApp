@@ -1,5 +1,6 @@
 package com.example.recordingapp
 
+import android.graphics.Point
 import android.util.Log
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
@@ -7,6 +8,7 @@ import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.pose.Pose
 import com.google.mlkit.vision.pose.PoseDetector
 import com.google.mlkit.vision.pose.PoseLandmark
+import kotlin.math.roundToInt
 
 class PoseImageAnalyser(
     private val poseDetector: PoseDetector,
@@ -33,6 +35,25 @@ class PoseImageAnalyser(
                         pose.getPoseLandmark(id)
                     }
 
+                    // SKELETON
+                    /*
+                    val skeletonPoints = selectedLandmarks.map {
+                        if (it == null
+                            || it.inFrameLikelihood < 1 - SCORE_DELTA
+                        ) {
+                            Point(0, 0)
+                        }
+                        else {
+                            Point(it.position.x.roundToInt(), it.position.y.roundToInt())
+                        }
+                        //todo keep in float to avoid unnecessary conversions
+                    }
+
+                     */
+                    poseListener.onPoseAnalysed(pose)
+
+
+                    // FRAME DETECTION
                     // Return early if no landmarks detected
                     if (selectedLandmarks.isEmpty()) {
                         imageProxy.close()
@@ -49,15 +70,12 @@ class PoseImageAnalyser(
                     frameCount--
                     if (frameCount < 0) {
                         frameCount = SCORE_DELIVERY_FRAME_RATE
-                        Log.d("debuglog", scores.toString())
                         poseListener.fullBodyInFrame(scores.average() > (selectedLandmarks.size - SCORE_DELTA))
                         scores.clear()
                     }
 
-                    // SKELETON
-                    //poseListener.onPoseAnalysed(it)
-
                     imageProxy.close()
+
                 }
                 .addOnFailureListener {
                     Log.d("debuglog", "ANALYSIS FAILURE")

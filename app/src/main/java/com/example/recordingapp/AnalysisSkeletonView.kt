@@ -2,25 +2,29 @@ package com.example.recordingapp
 
 import android.content.Context
 import android.graphics.Canvas
-import android.graphics.Color
 import android.graphics.Paint
-import android.os.Build
+import android.util.AttributeSet
 import android.view.Display
 import android.view.View
-import androidx.annotation.RequiresApi
-import com.google.mlkit.vision.pose.Pose
-import com.google.mlkit.vision.pose.PoseLandmark
 import android.view.WindowManager
 import androidx.core.content.res.ResourcesCompat
+import com.google.mlkit.vision.pose.Pose
+import com.google.mlkit.vision.pose.PoseLandmark
 
+class AnalysisSkeletonView@JvmOverloads constructor(
+    context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0
+) : View(context, attrs, defStyleAttr) {
 
-class SkeletonDraw(context: Context?, var pose: Pose) : View(context) {
-
-    private val boundaryPaint: Paint = Paint()
-    private val leftPaint = Paint()
-    private val rightPaint = Paint()
+    private val dotPaint: Paint = Paint()
+    private val linePaint: Paint = Paint()
 
     private val screenWidth: Int
+
+    var pose: Pose? = null
+    set(value) {
+        field = value
+        invalidate()
+    }
 
     init {
         val wm = this.context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
@@ -29,26 +33,68 @@ class SkeletonDraw(context: Context?, var pose: Pose) : View(context) {
 
         val blue = ResourcesCompat.getColor(this.context.resources, R.color.blue, null)
 
-        boundaryPaint.color = blue
-        boundaryPaint.strokeWidth = 10f
-        boundaryPaint.style = Paint.Style.STROKE
+        dotPaint.color = blue
+        dotPaint.strokeWidth = 100f // convert to px
+        dotPaint.style = Paint.Style.FILL
 
-        leftPaint.strokeWidth = 10f
-        leftPaint.color = blue
+        linePaint.color = blue
+        linePaint.strokeWidth = 20f // convert to px
+        linePaint.style = Paint.Style.FILL
+    }
 
-        rightPaint.strokeWidth = 10f
-        rightPaint.color = blue
+    fun updateLandmark(landmarks: List<PoseLandmark>) {
+        //for (landmark in landmarks) {
+        //    path?.drawCircle(translateX(landmark.position.x),landmark.position.y,8.0f, paint)
+        //}
     }
 
     override fun onDraw(canvas: Canvas?) {
         super.onDraw(canvas)
+        //Log.d("debuglog", "onDraw: ${coordinates.toString()}")
 
-        val landmarks = pose.allPoseLandmarks
-
-        for (landmark in landmarks) {
-            canvas?.drawCircle(translateX(landmark.position.x),landmark.position.y,8.0f, boundaryPaint)
+        pose?.let { p ->
+            val selectedLandmarks = landmarksSelection.map {
+                p.getPoseLandmark(it)?.let { l ->
+                    if (l.inFrameLikelihood > 0.9f) l // todo
+                    else null
+                }
+            }
+            for (landmark in selectedLandmarks) {
+                canvas?.drawCircle(translateX(landmark?.position?.x ?: 0f), landmark?.position?.y ?: 0f,50f, dotPaint) //todo convert to px
+                //canvas?.drawCircle(200f,-200f,8.0f, paint)
+            }
         }
 
+
+        //todo : a custom ui model ?
+
+        val leftShoulder = pose?.getPoseLandmark(PoseLandmark.LEFT_SHOULDER)
+        val rightShoulder = pose?.getPoseLandmark(PoseLandmark.RIGHT_SHOULDER)
+        val leftElbow = pose?.getPoseLandmark(PoseLandmark.LEFT_ELBOW)
+        val rightElbow = pose?.getPoseLandmark(PoseLandmark.RIGHT_ELBOW)
+        val leftWrist = pose?.getPoseLandmark(PoseLandmark.LEFT_WRIST)
+        val rightWrist = pose?.getPoseLandmark(PoseLandmark.RIGHT_WRIST)
+        val leftHip = pose?.getPoseLandmark(PoseLandmark.LEFT_HIP)
+        val rightHip = pose?.getPoseLandmark(PoseLandmark.RIGHT_HIP)
+        val leftKnee = pose?.getPoseLandmark(PoseLandmark.LEFT_KNEE)
+        val rightKnee = pose?.getPoseLandmark(PoseLandmark.RIGHT_KNEE)
+        val leftAnkle = pose?.getPoseLandmark(PoseLandmark.LEFT_ANKLE)
+        val rightAnkle = pose?.getPoseLandmark(PoseLandmark.RIGHT_ANKLE)
+        val leftHeel = pose?.getPoseLandmark(PoseLandmark.LEFT_HEEL)
+        val rightHeel = pose?.getPoseLandmark(PoseLandmark.RIGHT_HEEL)
+        val leftFootIndex = pose?.getPoseLandmark(PoseLandmark.LEFT_FOOT_INDEX)
+
+        // TORSO
+        if (leftShoulder != null && rightShoulder != null)
+            canvas?.drawLine(translateX(leftShoulder.position.x), leftShoulder.position.y, translateX(rightShoulder.position.x), rightShoulder.position.y, linePaint)
+
+        // ARMS
+        if (leftShoulder != null && leftElbow != null)
+            canvas?.drawLine(translateX(leftShoulder.position.x), leftShoulder.position.y, translateX(leftElbow.position.x), leftElbow.position.y, linePaint)
+
+        // LEGS
+
+/*
         val leftShoulder = pose.getPoseLandmark(PoseLandmark.LEFT_SHOULDER)  ?:return
         val rightShoulder = pose.getPoseLandmark(PoseLandmark.RIGHT_SHOULDER) ?:return
         val leftElbow = pose.getPoseLandmark(PoseLandmark.LEFT_ELBOW) ?:return
@@ -103,14 +149,35 @@ class SkeletonDraw(context: Context?, var pose: Pose) : View(context) {
         canvas?.drawLine(translateX(rightAnkle.position.x),rightAnkle.position.y,translateX(rightHeel.position.x),rightHeel.position.y,rightPaint)
         canvas?.drawLine(translateX(rightHeel.position.x),rightHeel.position.y,translateX(rightFootIndex.position.x),rightFootIndex.position.y,rightPaint)
 
+
+         */
     }
-
-
 
     private fun translateX(x: Float): Float {
         // you will need this for the inverted image in case of using front camera
         return screenWidth.minus(x)
     }
 
-
+    private val landmarksSelection = listOf(
+        PoseLandmark.NOSE,
+        PoseLandmark.LEFT_SHOULDER,
+        PoseLandmark.RIGHT_SHOULDER,
+        PoseLandmark.LEFT_ELBOW,
+        PoseLandmark.RIGHT_ELBOW,
+        PoseLandmark.LEFT_WRIST,
+        PoseLandmark.RIGHT_WRIST,
+        PoseLandmark.LEFT_HIP,
+        PoseLandmark.RIGHT_HIP,
+        PoseLandmark.LEFT_KNEE,
+        PoseLandmark.RIGHT_KNEE,
+        PoseLandmark.LEFT_ANKLE,
+        PoseLandmark.RIGHT_ANKLE,
+        PoseLandmark.LEFT_FOOT_INDEX,
+        PoseLandmark.RIGHT_FOOT_INDEX
+    )
 }
+// hashmap [id:Point]
+class AnalysisSkeletonUiModel(
+    landmarkSelection: List<Int>,
+
+)

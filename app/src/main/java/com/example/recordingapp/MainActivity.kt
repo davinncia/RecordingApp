@@ -5,6 +5,7 @@ import android.content.ContentValues
 import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Color
+import android.graphics.Point
 import android.graphics.drawable.GradientDrawable
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
@@ -45,12 +46,16 @@ class MainActivity : AppCompatActivity(), PoseImageAnalyser.PoseListener {
 
     private var analysisActivated = true
 
+    private lateinit var analysisSkeletonView: AnalysisSkeletonView
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         viewBinding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(viewBinding.root)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         //setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+
+        analysisSkeletonView = viewBinding.analysisSkeletonView
 
         // Request camera permissions
         if (allPermissionsGranted()) {
@@ -68,7 +73,6 @@ class MainActivity : AppCompatActivity(), PoseImageAnalyser.PoseListener {
         cameraExecutor = Executors.newSingleThreadExecutor()
 
         setRecordingFrame(FrameState.DEFAULT)
-
     }
 
     private fun stopVideoCapture() {
@@ -215,20 +219,34 @@ class MainActivity : AppCompatActivity(), PoseImageAnalyser.PoseListener {
                 )
             }
     }
-
+/*
     override fun onPoseAnalysed(pose: Pose) {
+        /*
         val skeleton = SkeletonDraw(this@MainActivity, pose)
         viewBinding.frameSkeleton.removeAllViews()
         viewBinding.frameSkeleton.addView(skeleton)
+
+         */
+        analysisSkeletonView.landmarks = pose.allPoseLandmarks
+
+    }
+
+ */
+
+    override fun onPoseAnalysed(pose: Pose) {
+        analysisSkeletonView.pose = pose
     }
 
     override fun fullBodyInFrame(inFrame: Boolean) {
         if (inFrame) {
             setRecordingFrame(FrameState.GOOD)
+            /*
             if (recordingState == RecordingState.STOPPED) {
                 // Launch automatic recording
                 countDownStart(COUNT_DOWN_POSTURE_DETECTION).start()
             }
+
+             */
         }
         else setRecordingFrame(FrameState.WRONG)
     }
