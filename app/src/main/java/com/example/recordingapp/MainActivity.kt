@@ -234,7 +234,7 @@ class MainActivity : AppCompatActivity(), PoseImageAnalyser.PoseListener {
  */
 
     override fun onPoseAnalysed(pose: Pose) {
-        analysisSkeletonView.pose = pose
+        analysisSkeletonView.setLandmarks(pose)
     }
 
     override fun fullBodyInFrame(inFrame: Boolean) {
