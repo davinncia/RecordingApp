@@ -168,7 +168,8 @@ class MainActivity : AppCompatActivity(), PoseImageAnalyser.PoseListener {
                 cameraProvider.unbindAll()
 
                 // Bind use cases to camera
-                cameraProvider.bindToLifecycle(this, cameraSelector, imageAnalysis, preview, videoCapture)
+                //cameraProvider.bindToLifecycle(this, cameraSelector, imageAnalysis, preview, videoCapture)
+                cameraProvider.bindToLifecycle(this, cameraSelector, imageAnalysis, preview)
 
             } catch (exc: IllegalArgumentException) {
                 Log.e(TAG, "Use case binding failed", exc)
@@ -228,13 +229,12 @@ class MainActivity : AppCompatActivity(), PoseImageAnalyser.PoseListener {
 
          */
         analysisSkeletonView.landmarks = pose.allPoseLandmarks
-
     }
 
  */
 
     override fun onPoseAnalysed(pose: Pose) {
-        analysisSkeletonView.pose = pose
+        analysisSkeletonView.setLandmarks(pose)
     }
 
     override fun fullBodyInFrame(inFrame: Boolean) {
