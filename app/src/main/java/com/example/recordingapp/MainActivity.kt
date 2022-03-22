@@ -158,7 +158,6 @@ class MainActivity : AppCompatActivity(), PoseImageAnalyser.PoseListener {
                 }
             //viewBinding.viewFinder.scaleType = PreviewView.ScaleType.FIT_CENTER
 
-
             val recorder = Recorder.Builder()
                 .setQualitySelector(QualitySelector.from(Quality.LOWEST))
                 .build()
@@ -176,11 +175,13 @@ class MainActivity : AppCompatActivity(), PoseImageAnalyser.PoseListener {
                 .addUseCase(preview)
                 .build()
 
+            /*
             Log.d(TAG, "startCamera: preview aspect ratio = ${viewBinding.viewFinder.viewPort?.aspectRatio}")
             Log.d(TAG, "startCamera: preview aspect ratio = ${viewBinding.viewFinder.viewPort?.aspectRatio?.toDouble()}")
 
             val width = viewBinding.viewFinder.height * viewBinding.viewFinder.viewPort?.aspectRatio?.toDouble()!!
             Log.d(TAG, "startCamera: preview width = ${width}")
+             */
 
             try {
                 // Unbind use cases before rebinding
@@ -244,24 +245,10 @@ class MainActivity : AppCompatActivity(), PoseImageAnalyser.PoseListener {
                 )
             }
     }
-/*
-    override fun onPoseAnalysed(pose: Pose) {
-        /*
-        val skeleton = SkeletonDraw(this@MainActivity, pose)
-        viewBinding.frameSkeleton.removeAllViews()
-        viewBinding.frameSkeleton.addView(skeleton)
-
-         */
-        analysisSkeletonView.landmarks = pose.allPoseLandmarks
-    }
-
- */
 
     override fun onPoseAnalysed(pose: Pose, frameSize: Size, rect: Rect) {
-
-        //val screenSizeRatio = Size(display?.width ?: 0 / frameSize.width, display?.height / frameSize.height)
         analysisSkeletonView.setLandmarks(pose, frameSize)
-        analysisSkeletonView.frameRect = rect
+        //analysisSkeletonView.frameRect = rect
     }
 
     override fun fullBodyInFrame(inFrame: Boolean) {

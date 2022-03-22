@@ -26,9 +26,6 @@ class AnalysisSkeletonView@JvmOverloads constructor(
 
     private val isLandscape: Boolean
 
-    //private val screenWidth: Int
-    //private val screenHeight: Int
-
     private val TAG = "debuglog"
 
     // [MlKit id : Coordinates]
@@ -59,8 +56,6 @@ class AnalysisSkeletonView@JvmOverloads constructor(
 
     private fun adaptCoordinate(coordinate: Point, imageSize: Size): Point {
 
-        Log.d(TAG, "view height: ${this.height}")
-
         val x = if (isLandscape) coordinate.x * (this.width / imageSize.width.toFloat())
                 else coordinate.x * (this.width / imageSize.height.toFloat())
 
@@ -74,9 +69,6 @@ class AnalysisSkeletonView@JvmOverloads constructor(
         val wm = this.context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
         val display: Display = wm.defaultDisplay
         isLandscape = display.width > display.height
-
-        Log.d(TAG, "screen height: ${display.height}")
-        Log.d(TAG, "view height: ${this.height}")
 
         val blue = ResourcesCompat.getColor(this.context.resources, R.color.blue, null)
 
