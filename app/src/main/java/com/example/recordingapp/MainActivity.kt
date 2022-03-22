@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Point
+import android.graphics.Rect
 import android.graphics.drawable.GradientDrawable
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
@@ -14,17 +15,19 @@ import android.os.Bundle
 import android.os.CountDownTimer
 import android.provider.MediaStore
 import android.util.Log
+import android.util.Rational
 import android.util.Size
 import android.view.Display
 import android.view.View
 import android.view.WindowManager
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.camera.core.CameraSelector
-import androidx.camera.core.ImageAnalysis
-import androidx.camera.core.Preview
+import androidx.camera.camera2.interop.Camera2CameraInfo
+import androidx.camera.core.*
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.video.*
+import androidx.camera.video.VideoCapture
+import androidx.camera.view.PreviewView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.example.recordingapp.databinding.ActivityMainBinding
@@ -148,10 +151,13 @@ class MainActivity : AppCompatActivity(), PoseImageAnalyser.PoseListener {
 
             // Preview
             val preview = Preview.Builder()
+                .setTargetAspectRatio(AspectRatio.RATIO_16_9)
                 .build()
                 .also {
                     it.setSurfaceProvider(viewBinding.viewFinder.surfaceProvider)
                 }
+            //viewBinding.viewFinder.scaleType = PreviewView.ScaleType.FIT_CENTER
+
 
             val recorder = Recorder.Builder()
                 .setQualitySelector(QualitySelector.from(Quality.LOWEST))
@@ -163,13 +169,26 @@ class MainActivity : AppCompatActivity(), PoseImageAnalyser.PoseListener {
 
             val imageAnalysis = getImageAnalysis()
 
+            //val viewPort = viewBinding.viewFinder.viewPort!!
+            val useCaseGroup = UseCaseGroup.Builder()
+                //.setViewPort(viewBinding.viewFinder.viewPort!!)
+                .addUseCase(imageAnalysis)
+                .addUseCase(preview)
+                .build()
+
+            Log.d(TAG, "startCamera: preview aspect ratio = ${viewBinding.viewFinder.viewPort?.aspectRatio}")
+            Log.d(TAG, "startCamera: preview aspect ratio = ${viewBinding.viewFinder.viewPort?.aspectRatio?.toDouble()}")
+
+            val width = viewBinding.viewFinder.height * viewBinding.viewFinder.viewPort?.aspectRatio?.toDouble()!!
+            Log.d(TAG, "startCamera: preview width = ${width}")
+
             try {
                 // Unbind use cases before rebinding
                 cameraProvider.unbindAll()
 
                 // Bind use cases to camera
                 //cameraProvider.bindToLifecycle(this, cameraSelector, imageAnalysis, preview, videoCapture)
-                cameraProvider.bindToLifecycle(this, cameraSelector, imageAnalysis, preview)
+                cameraProvider.bindToLifecycle(this, cameraSelector, useCaseGroup)
 
             } catch (exc: IllegalArgumentException) {
                 Log.e(TAG, "Use case binding failed", exc)
@@ -209,8 +228,13 @@ class MainActivity : AppCompatActivity(), PoseImageAnalyser.PoseListener {
         val wm = this.getSystemService(Context.WINDOW_SERVICE) as WindowManager
         val display: Display = wm.defaultDisplay
 
+        Log.d(TAG, "screen width: ${display.width} : ${display.height}")
+        Log.d(TAG, "screen aspectRatio: ${display.height / display.width}")
+
         return ImageAnalysis.Builder()
-            .setTargetResolution(Size(display.width, display.height))
+            //.setTargetResolution(Size(display.width, display.height))
+            //.setTargetResolution(Size(513, 513))
+            .setTargetAspectRatio(AspectRatio.RATIO_16_9)
             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
             .build()
             .also {
@@ -233,8 +257,11 @@ class MainActivity : AppCompatActivity(), PoseImageAnalyser.PoseListener {
 
  */
 
-    override fun onPoseAnalysed(pose: Pose) {
-        analysisSkeletonView.setLandmarks(pose)
+    override fun onPoseAnalysed(pose: Pose, frameSize: Size, rect: Rect) {
+
+        //val screenSizeRatio = Size(display?.width ?: 0 / frameSize.width, display?.height / frameSize.height)
+        analysisSkeletonView.setLandmarks(pose, frameSize)
+        analysisSkeletonView.frameRect = rect
     }
 
     override fun fullBodyInFrame(inFrame: Boolean) {
@@ -351,7 +378,7 @@ class MainActivity : AppCompatActivity(), PoseImageAnalyser.PoseListener {
     //----------------------------------- C O M P A N I O N --------------------------------------//
 
     companion object {
-        private const val TAG = "CameraXApp"
+        const val TAG = "debuglog"
         private const val FILENAME_FORMAT = "yyyy-MM-dd-HH-mm-ss-SSS"
 
         private const val COUNT_DOWN_POSTURE_DETECTION = 3_000L

@@ -1,7 +1,9 @@
 package com.example.recordingapp
 
 import android.graphics.Point
+import android.graphics.Rect
 import android.util.Log
+import android.util.Size
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
 import com.google.mlkit.vision.common.InputImage
@@ -23,6 +25,8 @@ class PoseImageAnalyser(
     override fun analyze(imageProxy: ImageProxy) {
 
         val mediaImage = imageProxy.image
+
+        //Log.d(MainActivity.TAG, "proxy: ${mediaImage?.width} - ${mediaImage?.height}")
 
         if (mediaImage != null) {
             val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
@@ -50,7 +54,7 @@ class PoseImageAnalyser(
                     }
 
                      */
-                    poseListener.onPoseAnalysed(pose)
+                    poseListener.onPoseAnalysed(pose, Size(image.width, image.height), mediaImage.cropRect)
 
 
                     // FRAME DETECTION
@@ -151,7 +155,7 @@ val nose = pose.getPoseLandmark(PoseLandmark.NOSE)
     }
 
     interface PoseListener {
-        fun onPoseAnalysed(pose: Pose)
+        fun onPoseAnalysed(pose: Pose, frameSize: Size, rect: Rect)
         fun fullBodyInFrame(inFrame: Boolean)
     }
 

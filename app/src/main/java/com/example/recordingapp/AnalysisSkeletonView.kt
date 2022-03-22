@@ -4,8 +4,10 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Point
+import android.graphics.Rect
 import android.util.AttributeSet
 import android.util.Log
+import android.util.Size
 import android.view.Display
 import android.view.View
 import android.view.WindowManager
@@ -20,8 +22,12 @@ class AnalysisSkeletonView@JvmOverloads constructor(
 
     private val dotPaint: Paint = Paint()
     private val linePaint: Paint = Paint()
+    private val rectPaint: Paint = Paint()
 
-    private val screenWidth: Int
+    private val isLandscape: Boolean
+
+    //private val screenWidth: Int
+    //private val screenHeight: Int
 
     private val TAG = "debuglog"
 
@@ -32,23 +38,45 @@ class AnalysisSkeletonView@JvmOverloads constructor(
             invalidate()
         }
 
-    fun setLandmarks(pose: Pose) {
+    // Debug
+    var frameRect: Rect? = null
+
+    fun setLandmarks(pose: Pose, frameSize: Size) {
         val hashMap = hashMapOf<Int, Point>()
 
         landmarksSelection.map { id ->
             pose.getPoseLandmark(id)?.let { l ->
-                if (l.inFrameLikelihood > MIN_FRAME_SCORE)
-                    hashMap[id] = Point(l.position.x.roundToInt(), l.position.y.roundToInt())
+                if (l.inFrameLikelihood > MIN_FRAME_SCORE) {
+                    //hashMap[id] = Point(l.position.x.roundToInt(), l.position.y.roundToInt())
+                    val coordinate = Point(l.position.x.roundToInt(), l.position.y.roundToInt())
+                    hashMap[id] = adaptCoordinate(coordinate, frameSize)
+                }
             }
         }
 
         landmarks = hashMap
     }
 
+    private fun adaptCoordinate(coordinate: Point, imageSize: Size): Point {
+
+        Log.d(TAG, "view height: ${this.height}")
+
+        val x = if (isLandscape) coordinate.x * (this.width / imageSize.width.toFloat())
+                else coordinate.x * (this.width / imageSize.height.toFloat())
+
+        val y = if (isLandscape) coordinate.y * (this.height / imageSize.height.toFloat())
+                else coordinate.y * (this.height / imageSize.width.toFloat())
+
+        return Point(x.roundToInt(), y.roundToInt())
+    }
+
     init {
         val wm = this.context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
         val display: Display = wm.defaultDisplay
-        screenWidth = display.width
+        isLandscape = display.width > display.height
+
+        Log.d(TAG, "screen height: ${display.height}")
+        Log.d(TAG, "view height: ${this.height}")
 
         val blue = ResourcesCompat.getColor(this.context.resources, R.color.blue, null)
 
@@ -59,10 +87,18 @@ class AnalysisSkeletonView@JvmOverloads constructor(
         linePaint.color = blue
         linePaint.strokeWidth = 20f // convert to px
         linePaint.style = Paint.Style.FILL
+
+        rectPaint.color = blue
+        rectPaint.strokeWidth = 5f // convert to px
+        rectPaint.style = Paint.Style.STROKE
     }
 
     override fun onDraw(canvas: Canvas?) {
         super.onDraw(canvas)
+
+        frameRect?.let {canvas?.drawRect(it, rectPaint) }
+
+        canvas?.drawLine(frameRect?.left?.toFloat() ?: 0f, frameRect?.top?.toFloat() ?: 0f, frameRect?.right?.toFloat() ?: 0f, frameRect?.bottom?.toFloat() ?: 0f, linePaint)
 
         landmarks.forEach { l ->
             canvas?.drawCircle(translateX(l.value.x.toFloat()), l.value.y.toFloat(), 45f, dotPaint) //todo convert to px
@@ -116,7 +152,7 @@ class AnalysisSkeletonView@JvmOverloads constructor(
 
     private fun translateX(x: Float): Float {
         // you will need this for the inverted image in case of using front camera
-        return screenWidth.minus(x)
+        return this.width.minus(x)
     }
 
     private val landmarksSelection = listOf(
