@@ -4,8 +4,10 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Point
+import android.graphics.Rect
 import android.util.AttributeSet
 import android.util.Log
+import android.util.Size
 import android.view.Display
 import android.view.View
 import android.view.WindowManager
@@ -20,46 +22,53 @@ class AnalysisSkeletonView@JvmOverloads constructor(
 
     private val dotPaint: Paint = Paint()
     private val linePaint: Paint = Paint()
+    private val rectPaint: Paint = Paint()
 
-    private val screenWidth: Int
+    private val isLandscape: Boolean
 
     private val TAG = "debuglog"
 
-    var pose: Pose? = null
-/*
-    var pose: Pose? = null
-    set(value) {
-        field = value
-        invalidate()
-    }
-
- */
-    // HashMap<MlKit id, Coordinates>
+    // [MlKit id : Coordinates]
     private var landmarks: HashMap<Int, Point> = hashMapOf()
         set(value) {
             field = value
             invalidate()
         }
 
-    fun setLandmarks(pose: Pose) {
-        this.pose = pose // debug
+    // Debug
+    var frameRect: Rect? = null
 
+    fun setLandmarks(pose: Pose, frameSize: Size) {
         val hashMap = hashMapOf<Int, Point>()
 
         landmarksSelection.map { id ->
             pose.getPoseLandmark(id)?.let { l ->
-                if (l.inFrameLikelihood > 0.9f)
-                    hashMap[id] = Point(l.position.x.roundToInt(), l.position.y.roundToInt())
+                if (l.inFrameLikelihood > MIN_FRAME_SCORE) {
+                    //hashMap[id] = Point(l.position.x.roundToInt(), l.position.y.roundToInt())
+                    val coordinate = Point(l.position.x.roundToInt(), l.position.y.roundToInt())
+                    hashMap[id] = adaptCoordinate(coordinate, frameSize)
+                }
             }
         }
 
         landmarks = hashMap
     }
 
+    private fun adaptCoordinate(coordinate: Point, imageSize: Size): Point {
+
+        val x = if (isLandscape) coordinate.x * (this.width / imageSize.width.toFloat())
+                else coordinate.x * (this.width / imageSize.height.toFloat())
+
+        val y = if (isLandscape) coordinate.y * (this.height / imageSize.height.toFloat())
+                else coordinate.y * (this.height / imageSize.width.toFloat())
+
+        return Point(x.roundToInt(), y.roundToInt())
+    }
+
     init {
         val wm = this.context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
         val display: Display = wm.defaultDisplay
-        screenWidth = display.width
+        isLandscape = display.width > display.height
 
         val blue = ResourcesCompat.getColor(this.context.resources, R.color.blue, null)
 
@@ -70,144 +79,72 @@ class AnalysisSkeletonView@JvmOverloads constructor(
         linePaint.color = blue
         linePaint.strokeWidth = 20f // convert to px
         linePaint.style = Paint.Style.FILL
-    }
 
-    fun updateLandmark(landmarks: List<PoseLandmark>) {
-        //for (landmark in landmarks) {
-        //    path?.drawCircle(translateX(landmark.position.x),landmark.position.y,8.0f, paint)
-        //}
+        rectPaint.color = blue
+        rectPaint.strokeWidth = 5f // convert to px
+        rectPaint.style = Paint.Style.STROKE
     }
 
     override fun onDraw(canvas: Canvas?) {
         super.onDraw(canvas)
-        //Log.d("debuglog", "onDraw: ${coordinates.toString()}")
 
-        /*
-        pose?.let { p ->
+        frameRect?.let {canvas?.drawRect(it, rectPaint) }
 
-            val selectedLandmarks = landmarksSelection.map {
-                p.getPoseLandmark(it)?.let { l ->
-                    if (l.inFrameLikelihood > 0.9f) l // todo
-                    else null
-                }
-            }
-
-
-            for (landmark in landmarks) {
-                canvas?.drawCircle(translateX(landmark.x ?: 0f), landmark?.position?.y ?: 0f,50f, dotPaint) //todo convert to px
-                //canvas?.drawCircle(200f,-200f,8.0f, paint)
-            }
-        }
-             */
+        canvas?.drawLine(frameRect?.left?.toFloat() ?: 0f, frameRect?.top?.toFloat() ?: 0f, frameRect?.right?.toFloat() ?: 0f, frameRect?.bottom?.toFloat() ?: 0f, linePaint)
 
         landmarks.forEach { l ->
-            canvas?.drawCircle(translateX(l.value.x.toFloat()), l.value.y.toFloat(),50f, dotPaint) //todo convert to px
+            canvas?.drawCircle(translateX(l.value.x.toFloat()), l.value.y.toFloat(), 45f, dotPaint) //todo convert to px
         }
 
         val leftShoulder = landmarks[PoseLandmark.LEFT_SHOULDER]
         val rightShoulder = landmarks[PoseLandmark.RIGHT_SHOULDER]
-
-        if (leftShoulder != null && rightShoulder != null)
-            canvas?.drawLine(translateX(leftShoulder?.x?.toFloat() ?: 0f), leftShoulder?.y?.toFloat() ?: 0f, translateX(rightShoulder?.x?.toFloat() ?: 0f), rightShoulder?.x?.toFloat() ?: 0f, linePaint)
-
-        Log.d(TAG, "onDraw: ${leftShoulder?.x} - ${leftShoulder?.y}")
-        Log.d(TAG, "onDraw: ${rightShoulder?.x} - ${rightShoulder?.y}")
-        Log.d(TAG, "pose: ${pose?.getPoseLandmark(PoseLandmark.LEFT_SHOULDER)?.position?.x} - ${leftShoulder?.y}")
-        Log.d(TAG, "pose: ${rightShoulder?.x} - ${rightShoulder?.y}")
-
-        /*
-        //todo : a custom ui model ?
-
-        val leftShoulder = pose?.getPoseLandmark(PoseLandmark.LEFT_SHOULDER)
-        val rightShoulder = pose?.getPoseLandmark(PoseLandmark.RIGHT_SHOULDER)
-        val leftElbow = pose?.getPoseLandmark(PoseLandmark.LEFT_ELBOW)
-        val rightElbow = pose?.getPoseLandmark(PoseLandmark.RIGHT_ELBOW)
-        val leftWrist = pose?.getPoseLandmark(PoseLandmark.LEFT_WRIST)
-        val rightWrist = pose?.getPoseLandmark(PoseLandmark.RIGHT_WRIST)
-        val leftHip = pose?.getPoseLandmark(PoseLandmark.LEFT_HIP)
-        val rightHip = pose?.getPoseLandmark(PoseLandmark.RIGHT_HIP)
-        val leftKnee = pose?.getPoseLandmark(PoseLandmark.LEFT_KNEE)
-        val rightKnee = pose?.getPoseLandmark(PoseLandmark.RIGHT_KNEE)
-        val leftAnkle = pose?.getPoseLandmark(PoseLandmark.LEFT_ANKLE)
-        val rightAnkle = pose?.getPoseLandmark(PoseLandmark.RIGHT_ANKLE)
-        val leftHeel = pose?.getPoseLandmark(PoseLandmark.LEFT_HEEL)
-        val rightHeel = pose?.getPoseLandmark(PoseLandmark.RIGHT_HEEL)
-        val leftFootIndex = pose?.getPoseLandmark(PoseLandmark.LEFT_FOOT_INDEX)
+        val leftElbow = landmarks[PoseLandmark.LEFT_ELBOW]
+        val rightElbow = landmarks[PoseLandmark.RIGHT_ELBOW]
+        val leftWrist = landmarks[PoseLandmark.LEFT_WRIST]
+        val rightWrist = landmarks[PoseLandmark.RIGHT_WRIST]
+        val leftHip = landmarks[PoseLandmark.LEFT_HIP]
+        val rightHip = landmarks[PoseLandmark.RIGHT_HIP]
+        val leftKnee = landmarks[PoseLandmark.LEFT_KNEE]
+        val rightKnee = landmarks[PoseLandmark.RIGHT_KNEE]
+        val leftAnkle = landmarks[PoseLandmark.LEFT_ANKLE]
+        val rightAnkle = landmarks[PoseLandmark.RIGHT_ANKLE]
 
         // TORSO
         if (leftShoulder != null && rightShoulder != null)
-            canvas?.drawLine(translateX(leftShoulder.position.x), leftShoulder.position.y, translateX(rightShoulder.position.x), rightShoulder.position.y, linePaint)
+            canvas?.drawLine(translateX(leftShoulder.x.toFloat()), leftShoulder.y.toFloat(), translateX(rightShoulder.x.toFloat()), rightShoulder.y.toFloat(), linePaint)
+        if (leftShoulder != null && leftHip != null)
+            canvas?.drawLine(translateX(leftShoulder.x.toFloat()), leftShoulder.y.toFloat(), translateX(leftHip.x.toFloat()), leftHip.y.toFloat(), linePaint)
+        if (rightShoulder != null && rightHip != null)
+                canvas?.drawLine(translateX(rightShoulder.x.toFloat()), rightShoulder.y.toFloat(), translateX(rightHip.x.toFloat()), rightHip.y.toFloat(), linePaint)
+        if (rightShoulder != null && rightHip != null)
+            canvas?.drawLine(translateX(rightShoulder.x.toFloat()), rightShoulder.y.toFloat(), translateX(rightHip.x.toFloat()), rightHip.y.toFloat(), linePaint)
+        if (leftHip != null && rightHip != null)
+            canvas?.drawLine(translateX(rightHip.x.toFloat()), rightHip.y.toFloat(), translateX(leftHip.x.toFloat()), leftHip.y.toFloat(), linePaint)
 
         // ARMS
         if (leftShoulder != null && leftElbow != null)
-            canvas?.drawLine(translateX(leftShoulder.position.x), leftShoulder.position.y, translateX(leftElbow.position.x), leftElbow.position.y, linePaint)
+            canvas?.drawLine(translateX(leftShoulder.x.toFloat()), leftShoulder.y.toFloat(), translateX(leftElbow.x.toFloat()), leftElbow.y.toFloat(), linePaint)
+        if (leftWrist != null && leftElbow != null)
+            canvas?.drawLine(translateX(leftWrist.x.toFloat()), leftWrist.y.toFloat(), translateX(leftElbow.x.toFloat()), leftElbow.y.toFloat(), linePaint)
+        if (rightShoulder != null && rightElbow != null)
+            canvas?.drawLine(translateX(rightShoulder.x.toFloat()), rightShoulder.y.toFloat(), translateX(rightElbow.x.toFloat()), rightElbow.y.toFloat(), linePaint)
+        if (rightWrist != null && rightElbow != null)
+            canvas?.drawLine(translateX(rightWrist.x.toFloat()), rightWrist.y.toFloat(), translateX(rightElbow.x.toFloat()), rightElbow.y.toFloat(), linePaint)
 
         // LEGS
-
-         */
-
-/*
-        val leftShoulder = pose.getPoseLandmark(PoseLandmark.LEFT_SHOULDER)  ?:return
-        val rightShoulder = pose.getPoseLandmark(PoseLandmark.RIGHT_SHOULDER) ?:return
-        val leftElbow = pose.getPoseLandmark(PoseLandmark.LEFT_ELBOW) ?:return
-        val rightElbow = pose.getPoseLandmark(PoseLandmark.RIGHT_ELBOW) ?:return
-        val leftWrist = pose.getPoseLandmark(PoseLandmark.LEFT_WRIST) ?:return
-        val rightWrist = pose.getPoseLandmark(PoseLandmark.RIGHT_WRIST) ?:return
-        val leftHip = pose.getPoseLandmark(PoseLandmark.LEFT_HIP) ?:return
-        val rightHip = pose.getPoseLandmark(PoseLandmark.RIGHT_HIP) ?:return
-        val leftKnee = pose.getPoseLandmark(PoseLandmark.LEFT_KNEE) ?:return
-        val rightKnee = pose.getPoseLandmark(PoseLandmark.RIGHT_KNEE) ?:return
-        val leftAnkle = pose.getPoseLandmark(PoseLandmark.LEFT_ANKLE) ?:return
-        val rightAnkle = pose.getPoseLandmark(PoseLandmark.RIGHT_ANKLE) ?:return
-
-        val leftPinky = pose.getPoseLandmark(PoseLandmark.LEFT_PINKY) ?:return
-        val rightPinky = pose.getPoseLandmark(PoseLandmark.RIGHT_PINKY) ?:return
-        val leftIndex = pose.getPoseLandmark(PoseLandmark.LEFT_INDEX) ?:return
-        val rightIndex = pose.getPoseLandmark(PoseLandmark.RIGHT_INDEX) ?:return
-        val leftThumb = pose.getPoseLandmark(PoseLandmark.LEFT_THUMB) ?:return
-        val rightThumb = pose.getPoseLandmark(PoseLandmark.RIGHT_THUMB) ?:return
-        val leftHeel = pose.getPoseLandmark(PoseLandmark.LEFT_HEEL) ?:return
-        val rightHeel = pose.getPoseLandmark(PoseLandmark.RIGHT_HEEL) ?:return
-        val leftFootIndex = pose.getPoseLandmark(PoseLandmark.LEFT_FOOT_INDEX) ?:return
-        val rightFootIndex = pose.getPoseLandmark(PoseLandmark.RIGHT_FOOT_INDEX) ?:return
-
-
-        canvas?.drawLine(translateX(leftShoulder.position.x),leftShoulder.position.y,translateX(rightShoulder.position.x),rightShoulder.position.y,boundaryPaint)
-        canvas?.drawLine(translateX(leftHip.position.x),leftHip.position.y,translateX(rightHip.position.x),rightHip.position.y,boundaryPaint)
-
-        //Left body
-        canvas?.drawLine(translateX(leftShoulder.position.x),leftShoulder.position.y,translateX(leftElbow.position.x),leftElbow.position.y,leftPaint)
-        canvas?.drawLine(translateX(leftElbow.position.x),leftElbow.position.y,translateX(leftWrist.position.x),leftWrist.position.y,leftPaint)
-        canvas?.drawLine(translateX(leftShoulder.position.x),leftShoulder.position.y,translateX(leftHip.position.x),leftHip.position.y,leftPaint)
-        canvas?.drawLine(translateX(leftHip.position.x),leftHip.position.y,translateX(leftKnee.position.x),leftKnee.position.y,leftPaint)
-        canvas?.drawLine(translateX(leftKnee.position.x),leftKnee.position.y,translateX(leftAnkle.position.x),leftAnkle.position.y,leftPaint)
-        canvas?.drawLine(translateX(leftWrist.position.x),leftWrist.position.y,translateX(leftThumb.position.x),leftThumb.position.y,leftPaint)
-        canvas?.drawLine(translateX(leftWrist.position.x),leftWrist.position.y,translateX(leftPinky.position.x),leftPinky.position.y,leftPaint)
-        canvas?.drawLine(translateX(leftWrist.position.x),leftWrist.position.y,translateX(leftIndex.position.x),leftIndex.position.y,leftPaint)
-        canvas?.drawLine(translateX(leftIndex.position.x),leftIndex.position.y,translateX(leftPinky.position.x),leftPinky.position.y,leftPaint)
-        canvas?.drawLine(translateX(leftAnkle.position.x),leftAnkle.position.y,translateX(leftHeel.position.x),leftHeel.position.y,leftPaint)
-        canvas?.drawLine(translateX(leftHeel.position.x),leftHeel.position.y,translateX(leftFootIndex.position.x),leftFootIndex.position.y,leftPaint)
-
-        ////Right body
-        canvas?.drawLine(translateX(rightShoulder.position.x),rightShoulder.position.y,translateX(rightElbow.position.x),rightElbow.position.y,rightPaint)
-        canvas?.drawLine(translateX(rightElbow.position.x),rightElbow.position.y,translateX(rightWrist.position.x),rightWrist.position.y,rightPaint)
-        canvas?.drawLine(translateX(rightShoulder.position.x),rightShoulder.position.y,translateX(rightHip.position.x),rightHip.position.y,rightPaint)
-        canvas?.drawLine(translateX(rightHip.position.x),rightHip.position.y,translateX(rightKnee.position.x),rightKnee.position.y,rightPaint)
-        canvas?.drawLine(translateX(rightKnee.position.x),rightKnee.position.y,translateX(rightAnkle.position.x),rightAnkle.position.y,rightPaint)
-        canvas?.drawLine(translateX(rightWrist.position.x),rightWrist.position.y,translateX(rightThumb.position.x),rightThumb.position.y,rightPaint)
-        canvas?.drawLine(translateX(rightWrist.position.x),rightWrist.position.y,translateX(rightPinky.position.x),rightPinky.position.y,rightPaint)
-        canvas?.drawLine(translateX(rightWrist.position.x),rightWrist.position.y,translateX(rightIndex.position.x),rightIndex.position.y,rightPaint)
-        canvas?.drawLine(translateX(rightIndex.position.x),rightIndex.position.y,translateX(rightPinky.position.x),rightPinky.position.y,rightPaint)
-        canvas?.drawLine(translateX(rightAnkle.position.x),rightAnkle.position.y,translateX(rightHeel.position.x),rightHeel.position.y,rightPaint)
-        canvas?.drawLine(translateX(rightHeel.position.x),rightHeel.position.y,translateX(rightFootIndex.position.x),rightFootIndex.position.y,rightPaint)
-
-
-         */
+        if (leftHip != null && leftKnee != null)
+            canvas?.drawLine(translateX(leftHip.x.toFloat()), leftHip.y.toFloat(), translateX(leftKnee.x.toFloat()), leftKnee.y.toFloat(), linePaint)
+        if (rightHip != null && rightKnee != null)
+            canvas?.drawLine(translateX(rightHip.x.toFloat()), rightHip.y.toFloat(), translateX(rightKnee.x.toFloat()), rightKnee.y.toFloat(), linePaint)
+        if (leftKnee != null && leftAnkle != null)
+            canvas?.drawLine(translateX(leftKnee.x.toFloat()), leftKnee.y.toFloat(), translateX(leftAnkle.x.toFloat()), leftAnkle.y.toFloat(), linePaint)
+        if (rightKnee != null && rightAnkle != null)
+            canvas?.drawLine(translateX(rightKnee.x.toFloat()), rightKnee.y.toFloat(), translateX(rightAnkle.x.toFloat()), rightAnkle.y.toFloat(), linePaint)
     }
 
     private fun translateX(x: Float): Float {
         // you will need this for the inverted image in case of using front camera
-        return screenWidth.minus(x)
+        return this.width.minus(x)
     }
 
     private val landmarksSelection = listOf(
@@ -224,12 +161,11 @@ class AnalysisSkeletonView@JvmOverloads constructor(
         PoseLandmark.RIGHT_KNEE,
         PoseLandmark.LEFT_ANKLE,
         PoseLandmark.RIGHT_ANKLE,
-        PoseLandmark.LEFT_FOOT_INDEX,
-        PoseLandmark.RIGHT_FOOT_INDEX
+        PoseLandmark.LEFT_ANKLE,
+        PoseLandmark.RIGHT_ANKLE,
     )
-}
-// hashmap [id:Point]
-class AnalysisSkeletonUiModel(
-    landmarkSelection: List<Int>,
 
-)
+    companion object {
+        private const val MIN_FRAME_SCORE = 0.97
+    }
+}

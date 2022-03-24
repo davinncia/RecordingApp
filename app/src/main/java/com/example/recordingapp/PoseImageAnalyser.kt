@@ -1,7 +1,9 @@
 package com.example.recordingapp
 
 import android.graphics.Point
+import android.graphics.Rect
 import android.util.Log
+import android.util.Size
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
 import com.google.mlkit.vision.common.InputImage
@@ -24,6 +26,8 @@ class PoseImageAnalyser(
 
         val mediaImage = imageProxy.image
 
+        //Log.d(MainActivity.TAG, "proxy: ${mediaImage?.width} - ${mediaImage?.height}")
+
         if (mediaImage != null) {
             val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
             image ?: return
@@ -35,22 +39,7 @@ class PoseImageAnalyser(
                         pose.getPoseLandmark(id)
                     }
 
-                    // SKELETON
-                    /*
-                    val skeletonPoints = selectedLandmarks.map {
-                        if (it == null
-                            || it.inFrameLikelihood < 1 - SCORE_DELTA
-                        ) {
-                            Point(0, 0)
-                        }
-                        else {
-                            Point(it.position.x.roundToInt(), it.position.y.roundToInt())
-                        }
-                        //todo keep in float to avoid unnecessary conversions
-                    }
-
-                     */
-                    poseListener.onPoseAnalysed(pose)
+                    poseListener.onPoseAnalysed(pose, Size(image.width, image.height), mediaImage.cropRect)
 
 
                     // FRAME DETECTION
@@ -107,51 +96,13 @@ class PoseImageAnalyser(
         PoseLandmark.NOSE
     )
 
-    /*
-    val leftShoulder = pose.getPoseLandmark(PoseLandmark.LEFT_SHOULDER)
-    val rightShoulder = pose.getPoseLandmark(PoseLandmark.RIGHT_SHOULDER)
-    val leftElbow = pose.getPoseLandmark(PoseLandmark.LEFT_ELBOW)
-    val rightElbow = pose.getPoseLandmark(PoseLandmark.RIGHT_ELBOW)
-    val leftWrist = pose.getPoseLandmark(PoseLandmark.LEFT_WRIST)
-    val rightWrist = pose.getPoseLandmark(PoseLandmark.RIGHT_WRIST)
-    val leftHip = pose.getPoseLandmark(PoseLandmark.LEFT_HIP)
-    val rightHip = pose.getPoseLandmark(PoseLandmark.RIGHT_HIP)
-    val leftKnee = pose.getPoseLandmark(PoseLandmark.LEFT_KNEE)
-    val rightKnee = pose.getPoseLandmark(PoseLandmark.RIGHT_KNEE)
-    val leftAnkle = pose.getPoseLandmark(PoseLandmark.LEFT_ANKLE)
-    val rightAnkle = pose.getPoseLandmark(PoseLandmark.RIGHT_ANKLE)
-    val leftFootIndex = pose.getPoseLandmark(PoseLandmark.LEFT_FOOT_INDEX)
-    val rightFootIndex = pose.getPoseLandmark(PoseLandmark.RIGHT_FOOT_INDEX)
-    val leftEye = pose.getPoseLandmark(PoseLandmark.LEFT_EYE)
-    val rightEye = pose.getPoseLandmark(PoseLandmark.RIGHT_EYE)
-        val leftMouth = pose.getPoseLandmark(PoseLandmark.LEFT_MOUTH)
-    val rightMouth = pose.getPoseLandmark(PoseLandmark.RIGHT_MOUTH)
-val nose = pose.getPoseLandmark(PoseLandmark.NOSE)
-
-    val leftPinky = pose.getPoseLandmark(PoseLandmark.LEFT_PINKY)
-    val rightPinky = pose.getPoseLandmark(PoseLandmark.RIGHT_PINKY)
-    val leftIndex = pose.getPoseLandmark(PoseLandmark.LEFT_INDEX)
-    val rightIndex = pose.getPoseLandmark(PoseLandmark.RIGHT_INDEX)
-    val leftThumb = pose.getPoseLandmark(PoseLandmark.LEFT_THUMB)
-    val rightThumb = pose.getPoseLandmark(PoseLandmark.RIGHT_THUMB)
-    val leftHeel = pose.getPoseLandmark(PoseLandmark.LEFT_HEEL)
-    val rightHeel = pose.getPoseLandmark(PoseLandmark.RIGHT_HEEL)
-    val leftEyeInner = pose.getPoseLandmark(PoseLandmark.LEFT_EYE_INNER)
-    val leftEyeOuter = pose.getPoseLandmark(PoseLandmark.LEFT_EYE_OUTER)
-    val rightEyeInner = pose.getPoseLandmark(PoseLandmark.RIGHT_EYE_INNER)
-    val rightEyeOuter = pose.getPoseLandmark(PoseLandmark.RIGHT_EYE_OUTER)
-    val leftEar = pose.getPoseLandmark(PoseLandmark.LEFT_EAR)
-    val rightEar = pose.getPoseLandmark(PoseLandmark.RIGHT_EAR)
-     */
-
-
     companion object {
         private const val SCORE_DELTA = 0.18 //Permissiveness constant (arbitrary)
         private const val SCORE_DELIVERY_FRAME_RATE = 10 //Trigger score every x video frame
     }
 
     interface PoseListener {
-        fun onPoseAnalysed(pose: Pose)
+        fun onPoseAnalysed(pose: Pose, frameSize: Size, rect: Rect)
         fun fullBodyInFrame(inFrame: Boolean)
     }
 
