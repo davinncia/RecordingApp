@@ -3,10 +3,7 @@ package com.example.recordingapp
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
-import android.graphics.Point
-import android.graphics.Rect
 import android.util.AttributeSet
-import android.util.Log
 import android.util.Size
 import android.view.Display
 import android.view.View
@@ -14,7 +11,6 @@ import android.view.WindowManager
 import androidx.core.content.res.ResourcesCompat
 import com.google.mlkit.vision.pose.Pose
 import com.google.mlkit.vision.pose.PoseLandmark
-import kotlin.math.roundToInt
 
 class AnalysisSkeletonView@JvmOverloads constructor(
     context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0
@@ -22,48 +18,15 @@ class AnalysisSkeletonView@JvmOverloads constructor(
 
     private val dotPaint: Paint = Paint()
     private val linePaint: Paint = Paint()
-    private val rectPaint: Paint = Paint()
 
     private val isLandscape: Boolean
 
-    private val TAG = "debuglog"
-
     // [MlKit id : Coordinates]
-    private var landmarks: HashMap<Int, Point> = hashMapOf()
+    private var landmarks: HashMap<Int, Coordinates> = hashMapOf()
         set(value) {
             field = value
             invalidate()
         }
-
-    // Debug
-    var frameRect: Rect? = null
-
-    fun setLandmarks(pose: Pose, frameSize: Size) {
-        val hashMap = hashMapOf<Int, Point>()
-
-        landmarksSelection.map { id ->
-            pose.getPoseLandmark(id)?.let { l ->
-                if (l.inFrameLikelihood > MIN_FRAME_SCORE) {
-                    //hashMap[id] = Point(l.position.x.roundToInt(), l.position.y.roundToInt())
-                    val coordinate = Point(l.position.x.roundToInt(), l.position.y.roundToInt())
-                    hashMap[id] = adaptCoordinate(coordinate, frameSize)
-                }
-            }
-        }
-
-        landmarks = hashMap
-    }
-
-    private fun adaptCoordinate(coordinate: Point, imageSize: Size): Point {
-
-        val x = if (isLandscape) coordinate.x * (this.width / imageSize.width.toFloat())
-                else coordinate.x * (this.width / imageSize.height.toFloat())
-
-        val y = if (isLandscape) coordinate.y * (this.height / imageSize.height.toFloat())
-                else coordinate.y * (this.height / imageSize.width.toFloat())
-
-        return Point(x.roundToInt(), y.roundToInt())
-    }
 
     init {
         val wm = this.context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
@@ -79,22 +42,25 @@ class AnalysisSkeletonView@JvmOverloads constructor(
         linePaint.color = blue
         linePaint.strokeWidth = 20f // convert to px
         linePaint.style = Paint.Style.FILL
+    }
 
-        rectPaint.color = blue
-        rectPaint.strokeWidth = 5f // convert to px
-        rectPaint.style = Paint.Style.STROKE
+    fun setLandmarks(pose: Pose, frameSize: Size) {
+        val hashMap = hashMapOf<Int, Coordinates>()
+
+        landmarksSelection.map { id ->
+            pose.getPoseLandmark(id)?.let { l ->
+                if (l.inFrameLikelihood > MIN_FRAME_SCORE) {
+                    val coordinate = Coordinates(l.position.x, l.position.y)
+                    hashMap[id] = adaptCoordinateForDisplay(coordinate, frameSize)
+                }
+            }
+        }
+
+        landmarks = hashMap
     }
 
     override fun onDraw(canvas: Canvas?) {
         super.onDraw(canvas)
-
-        frameRect?.let {canvas?.drawRect(it, rectPaint) }
-
-        canvas?.drawLine(frameRect?.left?.toFloat() ?: 0f, frameRect?.top?.toFloat() ?: 0f, frameRect?.right?.toFloat() ?: 0f, frameRect?.bottom?.toFloat() ?: 0f, linePaint)
-
-        landmarks.forEach { l ->
-            canvas?.drawCircle(translateX(l.value.x.toFloat()), l.value.y.toFloat(), 45f, dotPaint) //todo convert to px
-        }
 
         val leftShoulder = landmarks[PoseLandmark.LEFT_SHOULDER]
         val rightShoulder = landmarks[PoseLandmark.RIGHT_SHOULDER]
@@ -109,41 +75,58 @@ class AnalysisSkeletonView@JvmOverloads constructor(
         val leftAnkle = landmarks[PoseLandmark.LEFT_ANKLE]
         val rightAnkle = landmarks[PoseLandmark.RIGHT_ANKLE]
 
-        // TORSO
+        // POINTS
+        landmarks.forEach { l ->
+            canvas?.drawCircle(l.value.x, l.value.y, 45f, dotPaint) //todo convert to px
+        }
+
+        // TORSO LINES
         if (leftShoulder != null && rightShoulder != null)
-            canvas?.drawLine(translateX(leftShoulder.x.toFloat()), leftShoulder.y.toFloat(), translateX(rightShoulder.x.toFloat()), rightShoulder.y.toFloat(), linePaint)
+            canvas?.drawLine(leftShoulder.x, leftShoulder.y, rightShoulder.x, rightShoulder.y, linePaint)
         if (leftShoulder != null && leftHip != null)
-            canvas?.drawLine(translateX(leftShoulder.x.toFloat()), leftShoulder.y.toFloat(), translateX(leftHip.x.toFloat()), leftHip.y.toFloat(), linePaint)
+            canvas?.drawLine(leftShoulder.x, leftShoulder.y, leftHip.x, leftHip.y, linePaint)
         if (rightShoulder != null && rightHip != null)
-                canvas?.drawLine(translateX(rightShoulder.x.toFloat()), rightShoulder.y.toFloat(), translateX(rightHip.x.toFloat()), rightHip.y.toFloat(), linePaint)
+                canvas?.drawLine(rightShoulder.x, rightShoulder.y, rightHip.x, rightHip.y, linePaint)
         if (rightShoulder != null && rightHip != null)
-            canvas?.drawLine(translateX(rightShoulder.x.toFloat()), rightShoulder.y.toFloat(), translateX(rightHip.x.toFloat()), rightHip.y.toFloat(), linePaint)
+            canvas?.drawLine(rightShoulder.x, rightShoulder.y, rightHip.x, rightHip.y, linePaint)
         if (leftHip != null && rightHip != null)
-            canvas?.drawLine(translateX(rightHip.x.toFloat()), rightHip.y.toFloat(), translateX(leftHip.x.toFloat()), leftHip.y.toFloat(), linePaint)
+            canvas?.drawLine(rightHip.x, rightHip.y, leftHip.x, leftHip.y, linePaint)
 
-        // ARMS
+        // ARMS LINES
         if (leftShoulder != null && leftElbow != null)
-            canvas?.drawLine(translateX(leftShoulder.x.toFloat()), leftShoulder.y.toFloat(), translateX(leftElbow.x.toFloat()), leftElbow.y.toFloat(), linePaint)
+            canvas?.drawLine(leftShoulder.x, leftShoulder.y, leftElbow.x, leftElbow.y, linePaint)
         if (leftWrist != null && leftElbow != null)
-            canvas?.drawLine(translateX(leftWrist.x.toFloat()), leftWrist.y.toFloat(), translateX(leftElbow.x.toFloat()), leftElbow.y.toFloat(), linePaint)
+            canvas?.drawLine(leftWrist.x, leftWrist.y, leftElbow.x, leftElbow.y, linePaint)
         if (rightShoulder != null && rightElbow != null)
-            canvas?.drawLine(translateX(rightShoulder.x.toFloat()), rightShoulder.y.toFloat(), translateX(rightElbow.x.toFloat()), rightElbow.y.toFloat(), linePaint)
+            canvas?.drawLine(rightShoulder.x, rightShoulder.y, rightElbow.x, rightElbow.y, linePaint)
         if (rightWrist != null && rightElbow != null)
-            canvas?.drawLine(translateX(rightWrist.x.toFloat()), rightWrist.y.toFloat(), translateX(rightElbow.x.toFloat()), rightElbow.y.toFloat(), linePaint)
+            canvas?.drawLine(rightWrist.x, rightWrist.y, rightElbow.x, rightElbow.y, linePaint)
 
-        // LEGS
+        // LEGS LINES
         if (leftHip != null && leftKnee != null)
-            canvas?.drawLine(translateX(leftHip.x.toFloat()), leftHip.y.toFloat(), translateX(leftKnee.x.toFloat()), leftKnee.y.toFloat(), linePaint)
+            canvas?.drawLine(leftHip.x, leftHip.y, leftKnee.x, leftKnee.y, linePaint)
         if (rightHip != null && rightKnee != null)
-            canvas?.drawLine(translateX(rightHip.x.toFloat()), rightHip.y.toFloat(), translateX(rightKnee.x.toFloat()), rightKnee.y.toFloat(), linePaint)
+            canvas?.drawLine(rightHip.x, rightHip.y, rightKnee.x, rightKnee.y, linePaint)
         if (leftKnee != null && leftAnkle != null)
-            canvas?.drawLine(translateX(leftKnee.x.toFloat()), leftKnee.y.toFloat(), translateX(leftAnkle.x.toFloat()), leftAnkle.y.toFloat(), linePaint)
+            canvas?.drawLine(leftKnee.x, leftKnee.y, leftAnkle.x, leftAnkle.y, linePaint)
         if (rightKnee != null && rightAnkle != null)
-            canvas?.drawLine(translateX(rightKnee.x.toFloat()), rightKnee.y.toFloat(), translateX(rightAnkle.x.toFloat()), rightAnkle.y.toFloat(), linePaint)
+            canvas?.drawLine(rightKnee.x, rightKnee.y, rightAnkle.x, rightAnkle.y, linePaint)
     }
 
+    // Adapt coordinates so that they match with view displayed on screen
+    private fun adaptCoordinateForDisplay(coordinate: Coordinates, analyzedImageSize: Size): Coordinates {
+
+        val x = if (isLandscape) coordinate.x * (this.width / analyzedImageSize.width.toFloat())
+        else coordinate.x * (this.width / analyzedImageSize.height.toFloat())
+
+        val y = if (isLandscape) coordinate.y * (this.height / analyzedImageSize.height.toFloat())
+        else coordinate.y * (this.height / analyzedImageSize.width.toFloat())
+
+        return Coordinates(translateX(x), y)
+    }
+
+    // Needed for the inverted image when using front camera
     private fun translateX(x: Float): Float {
-        // you will need this for the inverted image in case of using front camera
         return this.width.minus(x)
     }
 
@@ -167,5 +150,8 @@ class AnalysisSkeletonView@JvmOverloads constructor(
 
     companion object {
         private const val MIN_FRAME_SCORE = 0.97
+        private const val TAG = "skeleton"
     }
+    
+    class Coordinates(val x: Float, val y: Float)
 }

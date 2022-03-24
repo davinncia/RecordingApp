@@ -39,16 +39,16 @@ class PoseImageAnalyser(
                         pose.getPoseLandmark(id)
                     }
 
-                    poseListener.onPoseAnalysed(pose, Size(image.width, image.height), mediaImage.cropRect)
-
-
-                    // FRAME DETECTION
                     // Return early if no landmarks detected
                     if (selectedLandmarks.isEmpty()) {
                         imageProxy.close()
                         return@addOnSuccessListener
                     }
 
+                    // SKELETON
+                    poseListener.onPoseAnalysed(pose, Size(image.width, image.height))
+
+                    // FRAME DETECTION
                     var score = 0.0
                     selectedLandmarks.map { mark ->
                         score += (mark?.inFrameLikelihood ?: 0f)
@@ -102,7 +102,7 @@ class PoseImageAnalyser(
     }
 
     interface PoseListener {
-        fun onPoseAnalysed(pose: Pose, frameSize: Size, rect: Rect)
+        fun onPoseAnalysed(pose: Pose, frameSize: Size)
         fun fullBodyInFrame(inFrame: Boolean)
     }
 
